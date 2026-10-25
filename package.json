@@ -23,6 +23,12 @@
     "react-router-dom": "^6.0.0 || ^7.0.0"
   },
   "peerDependenciesMeta": {
+    "@akalin/module_core": {
+      "optional": true
+    },
+    "@akalin/ui": {
+      "optional": true
+    },
     "i18next": {
       "optional": true
     },
