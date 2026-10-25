@@ -3,8 +3,9 @@
  * BaseSystemPage altyapısı üzerinde çalışan sistem e-posta, SMTP ve şablon yönetim ekranı.
  * 
  * MİMARİ NOTLARI:
- * - Sayfa içi münferit düğmeler (Kaydet butonu, Teste Geç butonu, Yeni Şablon butonu) kaldırılmış;
- *   tüm birincil ve ikincil operasyonlar Base sınıftan gelen ActionMenu (split-button & dropdown)
+ * - Content alanında iç içe mükerrer kart ve sayfa başlıkları (settings-section-card / settings-section-header)
+ *   tamamen kaldırılmıştır. Sekme içerikleri doğrudan form ve bilgi girişi bileşenlerinden oluşur.
+ * - Tüm birincil ve ikincil operasyonlar sayfa başlığındaki Base ActionMenu (split-button & dropdown)
  *   üzerinden merkezi olarak yönetilmektedir.
  * - Sunucu sekmesinde global Cmd+S / Ctrl+S klavye kısayolu ile form kaydetme desteklenmektedir.
  * - Sekmeler değiştikçe ActionMenu dinamik ve reaktif olarak ilgili sekmenin aksiyonlarını sunar.
@@ -50,14 +51,13 @@ import { validateSmtpField, validateSmtpForm } from '../validators/smtpValidatio
 import { EmailTemplateEditor } from './EmailTemplateEditor';
 
 /* ─────────────────────────────────────────────────────────────
- * ALT BİLEŞEN 1: SMTP Sunucu Yapılandırması Formu
+ * ALT BİLEŞEN 1: SMTP Sunucu Yapılandırması Formu (Sadece Bilgi Giriş Alanları)
  * ───────────────────────────────────────────────────────────── */
 export interface SmtpServerSettingsProps {
   onSaved?: (data: SmtpConfigDTO) => void;
   onGoToTest?: () => void;
   onNotify?: (message: string, type?: 'success' | 'error' | 'info') => void;
   onSavingChange?: (saving: boolean) => void;
-  showBottomButtons?: boolean;
 }
 
 export interface SmtpServerSettingsHandle {
@@ -69,293 +69,235 @@ export interface SmtpServerSettingsHandle {
 export const SmtpServerSettings = forwardRef<
   SmtpServerSettingsHandle,
   SmtpServerSettingsProps
->(
-  (
-    {
-      onSaved,
-      onGoToTest,
-      onNotify: propNotify,
-      onSavingChange,
-      showBottomButtons = false,
+>(({ onSaved, onNotify: propNotify, onSavingChange }, ref) => {
+  const { adapter, appName, onNotify: ctxNotify } = useEmailModule();
+
+  const notify = useCallback(
+    (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
+      if (propNotify) propNotify(msg, type);
+      else if (ctxNotify) ctxNotify(msg, type);
     },
-    ref
-  ) => {
-    const { adapter, appName, onNotify: ctxNotify } = useEmailModule();
+    [propNotify, ctxNotify]
+  );
 
-    const notify = useCallback(
-      (msg: string, type: 'success' | 'error' | 'info' = 'info') => {
-        if (propNotify) propNotify(msg, type);
-        else if (ctxNotify) ctxNotify(msg, type);
-      },
-      [propNotify, ctxNotify]
-    );
+  const [smtpData, setSmtpData] = useState<SmtpConfigDTO>({
+    host: '',
+    port: '587',
+    ssl: true,
+    user: '',
+    password: '',
+    fromEmail: '',
+    fromName: appName || 'Webakus ERP',
+  });
 
-    const [smtpData, setSmtpData] = useState<SmtpConfigDTO>({
-      host: '',
-      port: '587',
-      ssl: true,
-      user: '',
-      password: '',
-      fromEmail: '',
-      fromName: appName || 'Enterprise AI Gateway',
-    });
+  const [showPassword, setShowPassword] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
 
-    const [showPassword, setShowPassword] = useState(false);
-    const [errors, setErrors] = useState<Record<string, string>>({});
-    const [saving, setSaving] = useState(false);
-
-    const fetchSmtpSettings = useCallback(async () => {
-      try {
-        const data = await adapter.getSmtpSettings();
-        if (data) {
-          setSmtpData({
-            host: data.host || '',
-            port: String(data.port ?? '587'),
-            ssl: data.ssl !== undefined ? Boolean(data.ssl) : data.encryption !== 'none',
-            user: data.user ?? data.username ?? '',
-            password: data.password ?? '',
-            fromEmail: data.fromEmail ?? data.from_email ?? '',
-            fromName: data.fromName ?? data.from_name ?? appName,
-          });
-        }
-      } catch {}
-    }, [adapter, appName]);
-
-    useEffect(() => {
-      fetchSmtpSettings();
-    }, [fetchSmtpSettings]);
-
-    const handleFieldChange = <K extends keyof SmtpConfigDTO>(
-      field: K,
-      value: SmtpConfigDTO[K]
-    ) => {
-      setSmtpData((prev) => ({ ...prev, [field]: value }));
-      if (errors[field as string]) {
-        setErrors((prev) => ({ ...prev, [field as string]: '' }));
+  const fetchSmtpSettings = useCallback(async () => {
+    try {
+      const data = await adapter.getSmtpSettings();
+      if (data) {
+        setSmtpData({
+          host: data.host || '',
+          port: String(data.port ?? '587'),
+          ssl: data.ssl !== undefined ? Boolean(data.ssl) : data.encryption !== 'none',
+          user: data.user ?? data.username ?? '',
+          password: data.password ?? '',
+          fromEmail: data.fromEmail ?? data.from_email ?? '',
+          fromName: data.fromName ?? data.from_name ?? appName,
+        });
       }
-    };
+    } catch {}
+  }, [adapter, appName]);
 
-    const handleFieldBlur = (field: string, value: unknown) => {
-      const errorMsg = validateSmtpField(field, value);
-      setErrors((prev) => ({ ...prev, [field]: errorMsg }));
-    };
+  useEffect(() => {
+    fetchSmtpSettings();
+  }, [fetchSmtpSettings]);
 
-    const handleSave = useCallback(
-      async (e?: React.FormEvent): Promise<boolean> => {
-        if (e) e.preventDefault();
+  const handleFieldChange = <K extends keyof SmtpConfigDTO>(
+    field: K,
+    value: SmtpConfigDTO[K]
+  ) => {
+    setSmtpData((prev) => ({ ...prev, [field]: value }));
+    if (errors[field as string]) {
+      setErrors((prev) => ({ ...prev, [field as string]: '' }));
+    }
+  };
 
-        const formErrors = validateSmtpForm(smtpData);
-        if (Object.keys(formErrors).length > 0) {
-          setErrors(formErrors);
-          notify('Lütfen formdaki zorunlu alanları kontrol ediniz.', 'error');
-          return false;
-        }
+  const handleFieldBlur = (field: string, value: unknown) => {
+    const errorMsg = validateSmtpField(field, value);
+    setErrors((prev) => ({ ...prev, [field]: errorMsg }));
+  };
 
-        try {
-          setSaving(true);
-          onSavingChange?.(true);
-          await adapter.saveSmtpSettings(smtpData);
-          notify('SMTP e-posta ayarları başarıyla kaydedildi.', 'success');
-          if (onSaved) onSaved(smtpData);
-          return true;
-        } catch {
-          notify('SMTP ayarları kaydedilirken hata oluştu.', 'error');
-          return false;
-        } finally {
-          setSaving(false);
-          onSavingChange?.(false);
-        }
-      },
-      [smtpData, adapter, notify, onSaved, onSavingChange]
-    );
+  const handleSave = useCallback(
+    async (e?: React.FormEvent): Promise<boolean> => {
+      if (e) e.preventDefault();
 
-    useImperativeHandle(
-      ref,
-      () => ({
-        save: handleSave,
-        reload: fetchSmtpSettings,
-        isSaving: saving,
-      }),
-      [handleSave, fetchSmtpSettings, saving]
-    );
+      const formErrors = validateSmtpForm(smtpData);
+      if (Object.keys(formErrors).length > 0) {
+        setErrors(formErrors);
+        notify('Lütfen formdaki zorunlu alanları kontrol ediniz.', 'error');
+        return false;
+      }
 
-    const isConfigured = Boolean(
-      smtpData.host && (smtpData.user || smtpData.fromEmail)
-    );
+      try {
+        setSaving(true);
+        onSavingChange?.(true);
+        await adapter.saveSmtpSettings(smtpData);
+        notify('SMTP e-posta ayarları başarıyla kaydedildi.', 'success');
+        if (onSaved) onSaved(smtpData);
+        return true;
+      } catch {
+        notify('SMTP ayarları kaydedilirken hata oluştu.', 'error');
+        return false;
+      } finally {
+        setSaving(false);
+        onSavingChange?.(false);
+      }
+    },
+    [smtpData, adapter, notify, onSaved, onSavingChange]
+  );
 
-    return (
-      <div className="settings-section-card">
-        <div className="settings-section-header">
-          <div>
-            <h3 className="settings-section-title">
-              <Server size={20} color="var(--accent-primary)" />
-              SMTP Sunucu Parametreleri
-            </h3>
-            <p className="settings-section-desc">
-              Giden sistem bildirimleri, şifre sıfırlama ve otomatik rapor e-postaları için SMTP sunucu bağlantısı.
-            </p>
-          </div>
-          {isConfigured && (
-            <span className="chip-primary email-chip-sm flex items-center gap-4">
-              <CheckCircle2 size={13} />
-              Yapılandırıldı
-            </span>
-          )}
-        </div>
+  useImperativeHandle(
+    ref,
+    () => ({
+      save: handleSave,
+      reload: fetchSmtpSettings,
+      isSaving: saving,
+    }),
+    [handleSave, fetchSmtpSettings, saving]
+  );
 
-        <form onSubmit={handleSave} className="form-grid max-w-680">
-          <div className="form-field">
-            <label className="form-label">SMTP Sunucusu (Host)</label>
-            <input
-              type="text"
-              className={`form-input ${errors.host ? 'is-invalid' : ''}`}
-              value={smtpData.host}
-              onChange={(e) => handleFieldChange('host', e.target.value)}
-              onBlur={(e) => handleFieldBlur('host', e.target.value)}
-              placeholder="Örn: smtp.gmail.com veya mail.sirket.com"
-            />
-            <FieldError error={errors.host} />
-          </div>
-
-          <div className="form-field">
-            <label className="form-label">Port</label>
-            <input
-              type="text"
-              className={`form-input ${errors.port ? 'is-invalid' : ''}`}
-              value={String(smtpData.port ?? '')}
-              onChange={(e) => handleFieldChange('port', e.target.value)}
-              onBlur={(e) => handleFieldBlur('port', e.target.value)}
-              placeholder="587 veya 465"
-            />
-            <span className="form-helper-text">
-              Önerilen: 587 (STARTTLS/TLS) veya 465 (SSL)
-            </span>
-            <FieldError error={errors.port} />
-          </div>
-
-          <div className="form-field">
-            <label className="form-label">Kullanıcı Adı / E-Posta</label>
-            <input
-              type="text"
-              className={`form-input ${errors.user ? 'is-invalid' : ''}`}
-              value={smtpData.user}
-              onChange={(e) => handleFieldChange('user', e.target.value)}
-              onBlur={(e) => handleFieldBlur('user', e.target.value)}
-              placeholder="bilgi@sirket.com"
-            />
-            <FieldError error={errors.user} />
-          </div>
-
-          <div className="form-field">
-            <label className="form-label">SMTP Şifresi (Uygulama Parolası)</label>
-            <div className="password-input-wrapper">
-              <input
-                type={showPassword ? 'text' : 'password'}
-                className="form-input password-input-field"
-                value={smtpData.password || ''}
-                onChange={(e) => handleFieldChange('password', e.target.value)}
-                placeholder="••••••••••••"
-              />
-              <button
-                type="button"
-                className="password-toggle-btn"
-                onClick={() => setShowPassword(!showPassword)}
-                title={showPassword ? 'Gizle' : 'Göster'}
-              >
-                {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-              </button>
-            </div>
-            <span className="form-helper-text">
-              Gmail veya Yandex kullanıyorsanız Uygulama Şifresi giriniz.
-            </span>
-          </div>
-
-          <div className="form-field">
-            <label className="form-label">Gönderen E-Posta</label>
-            <input
-              type="email"
-              className={`form-input ${errors.fromEmail ? 'is-invalid' : ''}`}
-              value={smtpData.fromEmail}
-              onChange={(e) => handleFieldChange('fromEmail', e.target.value)}
-              onBlur={(e) => handleFieldBlur('fromEmail', e.target.value)}
-              placeholder="noreply@sirket.com"
-            />
-            <FieldError error={errors.fromEmail} />
-          </div>
-
-          <div className="form-field">
-            <label className="form-label">Gönderen Adı</label>
-            <input
-              type="text"
-              className="form-input"
-              value={smtpData.fromName}
-              onChange={(e) => handleFieldChange('fromName', e.target.value)}
-              placeholder={appName || 'Webakus ERP'}
-            />
-          </div>
-
-          <div className="form-field full-width">
-            <div
-              className="email-switch-card"
-              onClick={() => handleFieldChange('ssl', !smtpData.ssl)}
-            >
-              <div className="email-switch-left">
-                <div
-                  className={`email-switch-icon ${
-                    smtpData.ssl ? 'ssl-active' : ''
-                  }`}
-                >
-                  <ShieldCheck size={20} />
-                </div>
-                <div>
-                  <div className="email-switch-title">
-                    SSL / TLS Güvenli Bağlantı Kullan
-                  </div>
-                  <div className="email-switch-desc">
-                    Giden e-postaların SMTP sunucusuna güvenli şifreli tünel (SSL/TLS) üzerinden aktarılmasını sağlar.
-                  </div>
-                </div>
-              </div>
-              <input
-                type="checkbox"
-                checked={Boolean(smtpData.ssl)}
-                onChange={(e) => handleFieldChange('ssl', e.target.checked)}
-                className="email-checkbox"
-                onClick={(e) => e.stopPropagation()}
-              />
-            </div>
-          </div>
-
-          {showBottomButtons && (
-            <div className="form-field full-width flex items-center gap-12 pt-8">
-              <button
-                type="submit"
-                className="btn btn-primary flex items-center gap-8"
-                disabled={saving}
-              >
-                <Save size={15} />
-                SMTP Ayarlarını Kaydet
-              </button>
-              {onGoToTest && (
-                <button
-                  type="button"
-                  className="btn btn-outline flex items-center gap-8"
-                  onClick={onGoToTest}
-                >
-                  <Send size={15} />
-                  E-Posta Testine Geç
-                </button>
-              )}
-            </div>
-          )}
-        </form>
+  return (
+    <form onSubmit={handleSave} className="form-grid max-w-720 pt-16">
+      <div className="form-field">
+        <label className="form-label">SMTP Sunucusu (Host)</label>
+        <input
+          type="text"
+          className={`form-input ${errors.host ? 'is-invalid' : ''}`}
+          value={smtpData.host}
+          onChange={(e) => handleFieldChange('host', e.target.value)}
+          onBlur={(e) => handleFieldBlur('host', e.target.value)}
+          placeholder="Örn: smtp.gmail.com veya mail.sirket.com"
+        />
+        <FieldError error={errors.host} />
       </div>
-    );
-  }
-);
+
+      <div className="form-field">
+        <label className="form-label">Port</label>
+        <input
+          type="text"
+          className={`form-input ${errors.port ? 'is-invalid' : ''}`}
+          value={String(smtpData.port ?? '')}
+          onChange={(e) => handleFieldChange('port', e.target.value)}
+          onBlur={(e) => handleFieldBlur('port', e.target.value)}
+          placeholder="587 veya 465"
+        />
+        <span className="form-helper-text">
+          Önerilen: 587 (STARTTLS/TLS) veya 465 (SSL)
+        </span>
+        <FieldError error={errors.port} />
+      </div>
+
+      <div className="form-field">
+        <label className="form-label">Kullanıcı Adı / E-Posta</label>
+        <input
+          type="text"
+          className={`form-input ${errors.user ? 'is-invalid' : ''}`}
+          value={smtpData.user}
+          onChange={(e) => handleFieldChange('user', e.target.value)}
+          onBlur={(e) => handleFieldBlur('user', e.target.value)}
+          placeholder="bilgi@sirket.com"
+        />
+        <FieldError error={errors.user} />
+      </div>
+
+      <div className="form-field">
+        <label className="form-label">SMTP Şifresi (Uygulama Parolası)</label>
+        <div className="password-input-wrapper">
+          <input
+            type={showPassword ? 'text' : 'password'}
+            className="form-input password-input-field"
+            value={smtpData.password || ''}
+            onChange={(e) => handleFieldChange('password', e.target.value)}
+            placeholder="••••••••••••"
+          />
+          <button
+            type="button"
+            className="password-toggle-btn"
+            onClick={() => setShowPassword(!showPassword)}
+            title={showPassword ? 'Gizle' : 'Göster'}
+          >
+            {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+          </button>
+        </div>
+        <span className="form-helper-text">
+          Gmail veya Yandex kullanıyorsanız Uygulama Şifresi giriniz.
+        </span>
+      </div>
+
+      <div className="form-field">
+        <label className="form-label">Gönderen E-Posta</label>
+        <input
+          type="email"
+          className={`form-input ${errors.fromEmail ? 'is-invalid' : ''}`}
+          value={smtpData.fromEmail}
+          onChange={(e) => handleFieldChange('fromEmail', e.target.value)}
+          onBlur={(e) => handleFieldBlur('fromEmail', e.target.value)}
+          placeholder="noreply@sirket.com"
+        />
+        <FieldError error={errors.fromEmail} />
+      </div>
+
+      <div className="form-field">
+        <label className="form-label">Gönderen Adı</label>
+        <input
+          type="text"
+          className="form-input"
+          value={smtpData.fromName}
+          onChange={(e) => handleFieldChange('fromName', e.target.value)}
+          placeholder={appName || 'Webakus ERP'}
+        />
+      </div>
+
+      <div className="form-field full-width">
+        <div
+          className="email-switch-card"
+          onClick={() => handleFieldChange('ssl', !smtpData.ssl)}
+        >
+          <div className="email-switch-left">
+            <div
+              className={`email-switch-icon ${
+                smtpData.ssl ? 'ssl-active' : ''
+              }`}
+            >
+              <ShieldCheck size={20} />
+            </div>
+            <div>
+              <div className="email-switch-title">
+                SSL / TLS Güvenli Bağlantı Kullan
+              </div>
+              <div className="email-switch-desc">
+                Giden e-postaların SMTP sunucusuna güvenli şifreli tünel (SSL/TLS) üzerinden aktarılmasını sağlar.
+              </div>
+            </div>
+          </div>
+          <input
+            type="checkbox"
+            checked={Boolean(smtpData.ssl)}
+            onChange={(e) => handleFieldChange('ssl', e.target.checked)}
+            className="email-checkbox"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      </div>
+    </form>
+  );
+});
 
 /* ─────────────────────────────────────────────────────────────
- * ALT BİLEŞEN 2: Canlı E-Posta Gönderim Testi Konsolu
+ * ALT BİLEŞEN 2: Canlı E-Posta Gönderim Testi Konsolu (Sadece Giriş Alanı)
  * ───────────────────────────────────────────────────────────── */
 export interface SmtpTestSettingsProps {
   onNotify?: (message: string, type?: 'success' | 'error' | 'info') => void;
@@ -452,85 +394,67 @@ export const SmtpTestSettings = forwardRef<
   );
 
   return (
-    <div className="settings-section-card">
-      <div className="settings-section-header">
-        <div>
-          <h3 className="settings-section-title">
-            <Send size={20} color="var(--accent-primary)" />
-            E-Posta Gönderim Testi
-          </h3>
-          <p className="settings-section-desc">
-            Girdiğiniz SMTP yapılandırmasının çalıştığını doğrulamak için bir alıcı e-posta adresi yazıp canlı test e-postası gönderin.
-          </p>
-        </div>
+    <form onSubmit={handleSendTest} className="max-w-720 flex flex-col gap-16 pt-16">
+      <div className="form-field">
+        <label className="form-label flex items-center gap-6">
+          <Mail size={15} color="var(--accent-primary)" />
+          Alıcı E-Posta Adresi
+        </label>
+        <input
+          type="email"
+          className={`form-input ${error ? 'is-invalid' : ''}`}
+          placeholder="alici@example.com"
+          value={testEmail}
+          onChange={(e) => {
+            setTestEmail(e.target.value);
+            if (error) setError('');
+          }}
+        />
+        <span className="form-helper-text">
+          Test e-postasını göndermek için üst başlıktaki ActionMenu içerisinden "Test E-Postası Gönder" düğmesini kullanabilir veya Enter tuşuna basabilirsiniz.
+        </span>
+        <FieldError error={error} />
       </div>
 
-      <form onSubmit={handleSendTest} className="max-w-680 flex flex-col gap-16">
-        <div className="form-field">
-          <label className="form-label flex items-center gap-6">
-            <Mail size={15} color="var(--accent-primary)" />
-            Alıcı E-Posta Adresi
-          </label>
-          <div className="flex gap-10">
-            <input
-              type="email"
-              className={`form-input flex-1 ${error ? 'is-invalid' : ''}`}
-              placeholder="alici@example.com"
-              value={testEmail}
-              onChange={(e) => {
-                setTestEmail(e.target.value);
-                if (error) setError('');
-              }}
-            />
-          </div>
-          <span className="form-helper-text">
-            Test e-postasını göndermek için üst başlıktaki ActionMenu içerisinden "Test E-Postası Gönder" düğmesini kullanabilir veya Enter tuşuna basabilirsiniz.
-          </span>
-          <FieldError error={error} />
-        </div>
-
-        {lastResult && (
-          <div
-            className={`test-result-alert ${
-              lastResult.success ? 'test-result-success' : 'test-result-error'
-            }`}
-          >
-            <div className="flex items-center gap-10">
-              {lastResult.success ? (
-                <CheckCircle2 size={18} color="var(--success)" />
-              ) : (
-                <AlertCircle size={18} color="var(--danger)" />
-              )}
-              <div className="flex-1">
-                <div className="font-600 text-13">
-                  {lastResult.success ? 'Bağlantı Başarılı!' : 'Bağlantı Hatası'}
-                  <span className="text-secondary text-12 font-400 ml-8">
-                    ({lastResult.time})
-                  </span>
-                </div>
-                <div className="text-12 mt-2">{lastResult.message}</div>
+      {lastResult && (
+        <div
+          className={`test-result-alert ${
+            lastResult.success ? 'test-result-success' : 'test-result-error'
+          }`}
+        >
+          <div className="flex items-center gap-10">
+            {lastResult.success ? (
+              <CheckCircle2 size={18} color="var(--success)" />
+            ) : (
+              <AlertCircle size={18} color="var(--danger)" />
+            )}
+            <div className="flex-1">
+              <div className="font-600 text-13">
+                {lastResult.success ? 'Bağlantı Başarılı!' : 'Bağlantı Hatası'}
+                <span className="text-secondary text-12 font-400 ml-8">
+                  ({lastResult.time})
+                </span>
               </div>
+              <div className="text-12 mt-2">{lastResult.message}</div>
             </div>
           </div>
-        )}
-      </form>
-    </div>
+        </div>
+      )}
+    </form>
   );
 });
 
 /* ─────────────────────────────────────────────────────────────
- * ALT BİLEŞEN 3: Sistem E-Posta Şablonları Listesi
+ * ALT BİLEŞEN 3: Sistem E-Posta Şablonları Listesi (Sadece Şablon Kartları)
  * ───────────────────────────────────────────────────────────── */
 export interface SmtpTemplatesSettingsProps {
   templates?: EmailTemplateDTO[];
   onOpenTemplate?: (templateId: string) => void;
-  hideHeaderButton?: boolean;
 }
 
 export const SmtpTemplatesSettings: React.FC<SmtpTemplatesSettingsProps> = ({
   templates: propTemplates,
   onOpenTemplate,
-  hideHeaderButton = true,
 }) => {
   const { adapter } = useEmailModule();
   const navigate = useNavigate();
@@ -571,44 +495,20 @@ export const SmtpTemplatesSettings: React.FC<SmtpTemplatesSettingsProps> = ({
   };
 
   return (
-    <div className="settings-section-card">
-      <div className="settings-section-header">
-        <div>
-          <h3 className="settings-section-title">
-            <FileText size={20} color="var(--accent-primary)" />
-            E-Posta Şablonları & Bildirimler
-          </h3>
-          <p className="settings-section-desc">
-            Sistem bildirimleri, şifre sıfırlama ve karşılama e-postaları için şablon yönetimi.
-          </p>
-        </div>
-        {!hideHeaderButton && (
-          <button
-            type="button"
-            className="btn btn-outline flex items-center gap-8"
-            onClick={() => handleOpen('new')}
-          >
-            <Plus size={15} />
-            Yeni Şablon
-          </button>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-16 w-full">
-        {templates.map((tpl) => (
-          <EmailTemplateCard
-            key={tpl.id}
-            id={tpl.id}
-            code={tpl.code}
-            title={tpl.title}
-            description={tpl.description}
-            preview={tpl.subject}
-            tags={tpl.tags}
-            badge={tpl.isDefault ? 'Varsayılan Şablon' : undefined}
-            onClick={() => handleOpen(tpl.id)}
-          />
-        ))}
-      </div>
+    <div className="flex flex-col gap-16 w-full max-w-960 pt-16">
+      {templates.map((tpl) => (
+        <EmailTemplateCard
+          key={tpl.id}
+          id={tpl.id}
+          code={tpl.code}
+          title={tpl.title}
+          description={tpl.description}
+          preview={tpl.subject}
+          tags={tpl.tags}
+          badge={tpl.isDefault ? 'Varsayılan Şablon' : undefined}
+          onClick={() => handleOpen(tpl.id)}
+        />
+      ))}
     </div>
   );
 };
@@ -868,7 +768,6 @@ export const SmtpSettings: React.FC<SmtpSettingsProps> = ({
             onNotify={onNotify}
             onSavingChange={setIsServerSaving}
             onGoToTest={() => handleTabChange('test')}
-            showBottomButtons={false}
           />
         ),
       },
@@ -892,7 +791,6 @@ export const SmtpSettings: React.FC<SmtpSettingsProps> = ({
           <SmtpTemplatesSettings
             templates={templates}
             onOpenTemplate={handleOpenTemplate}
-            hideHeaderButton={true}
           />
         ),
       },
