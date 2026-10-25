@@ -11,7 +11,6 @@ import {
   FieldError,
   BaseSwitch,
   BackButton,
-  CancelButton,
   useHeaderApi,
   type BaseTabItem,
 } from '@akalin/ui';
@@ -494,7 +493,6 @@ export const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
       isSaving={saving}
       saveButtonText="Şablonu Kaydet"
       enableAiAssistant={false}
-      footerExtra={<CancelButton onClick={handleClose} text="Vazgeç" />}
       tabs={tabs}
       activeTabId={activeTabId}
       onTabChange={setActiveTabId}
