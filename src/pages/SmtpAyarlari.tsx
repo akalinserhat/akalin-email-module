@@ -661,7 +661,7 @@ export const SmtpSettings: React.FC<SmtpSettingsProps> = ({
     if (currentTab === 'server') {
       return [
         {
-          label: isServerSaving ? 'Kaydediliyor...' : 'SMTP Ayarlarını Kaydet',
+          label: isServerSaving ? 'Kaydediliyor...' : 'Kaydet',
           icon: isServerSaving ? (
             <Loader2 size={15} className="animate-spin" />
           ) : (
