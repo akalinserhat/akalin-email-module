@@ -411,7 +411,7 @@ export const SmtpTestSettings = forwardRef<
           }}
         />
         <span className="form-helper-text">
-          Test e-postasını göndermek için üst başlıktaki ActionMenu içerisinden "Test E-Postası Gönder" düğmesini kullanabilir veya Enter tuşuna basabilirsiniz.
+          Test e-postasını göndermek için üst başlıktaki ActionMenu içerisinden "Gönder" düğmesini kullanabilir veya Enter tuşuna basabilirsiniz.
         </span>
         <FieldError error={error} />
       </div>
@@ -698,7 +698,7 @@ export const SmtpSettings: React.FC<SmtpSettingsProps> = ({
     if (currentTab === 'test') {
       return [
         {
-          label: isTestSending ? 'Gönderiliyor...' : 'Test E-Postası Gönder',
+          label: isTestSending ? 'Gönderiliyor...' : 'Gönder',
           icon: isTestSending ? (
             <Loader2 size={15} className="animate-spin" />
           ) : (
