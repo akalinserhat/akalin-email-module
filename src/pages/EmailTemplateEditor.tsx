@@ -8,6 +8,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { FileText, Sparkles, Eye, Tag, CheckCircle2 } from 'lucide-react';
 import {
   BaseCardPage,
+  IdOlusturucuInput,
   FieldError,
   BaseSwitch,
   BackButton,
@@ -302,15 +303,18 @@ export const EmailTemplateEditor: React.FC<EmailTemplateEditorProps> = ({
 
                 <div className="form-field">
                   <label className="form-label">Şablon Kodu (Kimlik)</label>
-                  <input
-                    type="text"
-                    className={`form-input ${errors.code ? 'is-invalid' : ''}`}
+                  <IdOlusturucuInput
+                    id="email-template-code"
+                    name="code"
+                    idPrefix="TPL"
+                    idLength={8}
+                    hideGenerateWhenFilled={true}
+                    showCopyButton={true}
                     value={formData.code}
-                    onChange={(e) =>
-                      handleFieldChange('code', e.target.value.toUpperCase())
-                    }
+                    onValueChange={(val) => handleFieldChange('code', val)}
                     onBlur={(e) => handleFieldBlur('code', e.target.value)}
                     placeholder="Örn: PASSWORD_RESET"
+                    className={errors.code ? 'is-invalid' : ''}
                   />
                   <span className="form-helper-text">
                     Sistem servislerinin şablonu çağırmak için kullandığı benzersiz anahtar.
